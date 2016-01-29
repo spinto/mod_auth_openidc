@@ -406,8 +406,8 @@ static apr_status_t oidc_session_load_cookie(request_rec *r, session_rec *z) {
 	if (cookieValue != NULL) {
 		if (oidc_base64url_decode_decrypt_string(r, (char **) &z->encoded,
 				cookieValue) <= 0) {
-			//oidc_util_set_cookie(r, d->cookie, "");
-			oidc_warn(r, "cookie value possibly corrupted");
+			oidc_warn(r, "cookie value possibly corrupted; deleting it");
+			oidc_util_set_cookie(r, d->cookie, "", -1);
 			return APR_EGENERAL;
 		}
 	}
@@ -429,8 +429,10 @@ static apr_status_t oidc_session_save_cookie(request_rec *r, session_rec *z) {
 			return APR_EGENERAL;
 		}
 	}
-	oidc_util_set_cookie(r, d->cookie, cookieValue,
-			c->persistent_session_cookie ? z->expiry : -1);
+
+	if (oidc_util_set_cookie(r, d->cookie, cookieValue,
+			c->persistent_session_cookie ? z->expiry : -1) == FALSE)
+		return APR_EGENERAL;
 
 	return APR_SUCCESS;
 }
@@ -485,7 +487,8 @@ static apr_status_t oidc_session_load_22(request_rec *r, session_rec **zz) {
 	/* check whether it has expired */
 	if (apr_time_now() > z->expiry) {
 
-		oidc_warn(r, "session restored from cache has expired");
+		if (z->expiry > 0)
+			oidc_warn(r, "session restored from cache has expired");
 		apr_table_clear(z->entries);
 		z->expiry = 0;
 		z->encoded = NULL;

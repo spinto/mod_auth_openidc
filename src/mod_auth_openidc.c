@@ -813,7 +813,8 @@ static int oidc_handle_existing_session(request_rec *r, oidc_cfg *cfg,
 		slack = apr_time_from_sec(60);
 	if (session->expiry - now < interval - slack) {
 		session->expiry = now + interval;
-		oidc_session_save(r, session);
+		if (oidc_session_save(r, session) != APR_SUCCESS)
+			return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
 	/* return "user authenticated" status */
@@ -979,7 +980,7 @@ static apr_byte_t oidc_get_remote_user(request_rec *r, oidc_cfg *c,
 /*
  * store resolved information in the session
  */
-static void oidc_save_in_session(request_rec *r, oidc_cfg *c,
+static apr_byte_t oidc_save_in_session(request_rec *r, oidc_cfg *c,
 		session_rec *session, oidc_provider_t *provider, const char *remoteUser,
 		const char *id_token, apr_jwt_t *id_token_jwt, const char *claims,
 		const char *access_token, const int expires_in,
@@ -1067,7 +1068,7 @@ static void oidc_save_in_session(request_rec *r, oidc_cfg *c,
 			c->cookie_domain ? c->cookie_domain : oidc_get_current_url_host(r));
 
 	/* store the session */
-	oidc_session_save(r, session);
+	return (oidc_session_save(r, session) == APR_SUCCESS);
 }
 
 /*
@@ -1279,12 +1280,18 @@ static int oidc_handle_authorization_response(request_rec *r, oidc_cfg *c,
 		}
 
 		/* store resolved information in the session */
-		oidc_save_in_session(r, c, session, provider, r->user,
+		if (oidc_save_in_session(r, c, session, provider, r->user,
 				apr_table_get(params, "id_token"), jwt, claims,
 				apr_table_get(params, "access_token"), expires_in,
 				apr_table_get(params, "refresh_token"),
 				apr_table_get(params, "session_state"),
-				apr_table_get(params, "state"), original_url);
+				apr_table_get(params, "state"), original_url) == FALSE) {
+			oidc_warn(r,
+					"session save failure: return user error");
+			apr_jwt_destroy(jwt);
+			return oidc_authorization_response_error(r, c, proto_state,
+					"Session save error: if this error repeats itself then contact the web server administrator!", NULL);
+		}
 	} else {
 		oidc_error(r, "remote user could not be set");
 		return oidc_authorization_response_error(r, c, proto_state,
@@ -1296,7 +1303,7 @@ static int oidc_handle_authorization_response(request_rec *r, oidc_cfg *c,
 	json_decref(proto_state);
 	apr_jwt_destroy(jwt);
 
-	/* check that we've actually authenticated a user; functions as error handling for oidc_get_remote_user */
+	/* check that we've actually authenticated a user; functions as error handling for oidc_get_remote_user and oidc_save_in_session */
 	if (r->user == NULL)
 		return HTTP_UNAUTHORIZED;
 

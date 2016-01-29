@@ -679,7 +679,7 @@ static char *oidc_util_get_cookie_path(request_rec *r) {
 /*
  * set a cookie in the HTTP response headers
  */
-void oidc_util_set_cookie(request_rec *r, const char *cookieName,
+apr_byte_t oidc_util_set_cookie(request_rec *r, const char *cookieName,
 		const char *cookieValue, apr_time_t expires) {
 
 	oidc_cfg *c = ap_get_module_config(r->server->module_config,
@@ -712,9 +712,10 @@ void oidc_util_set_cookie(request_rec *r, const char *cookieName,
 
 	/* sanity check on overall cookie value size */
 	if (strlen(headerString) > 4093) {
-		oidc_warn(r,
+		oidc_error(r,
 				"the length of the cookie value (%lu) is greater than 4093(!) bytes, this may not work with all browsers/server combinations: consider switching to a server side caching!",
 				(unsigned long)strlen(headerString));
+		return FALSE;
 	}
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
@@ -730,6 +731,8 @@ void oidc_util_set_cookie(request_rec *r, const char *cookieName,
 
 	/* do some logging */
 	oidc_debug(r, "adding outgoing header: Set-Cookie: %s", headerString);
+
+	return TRUE;
 }
 
 /*
