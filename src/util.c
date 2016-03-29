@@ -1667,3 +1667,16 @@ int oidc_util_cookie_domain_valid(const char *hostname, char *cookie_domain) {
 	}
 	return TRUE;
 }
+
+/*
+ *  * return HTTP_UNAUTHORIZED with correct realm
+ *   */
+int note_basic_auth_failure(request_rec *r)
+{
+    apr_table_setn(r->err_headers_out,
+                   (PROXYREQ_PROXY == r->proxyreq) ? "Proxy-Authenticate"
+                                                   : "WWW-Authenticate",
+                   apr_pstrcat(r->pool, "Bearer realm=\"", ap_auth_name(r),
+                               "\"", NULL));
+    return HTTP_UNAUTHORIZED;
+}

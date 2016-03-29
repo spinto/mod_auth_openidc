@@ -309,7 +309,7 @@ int oidc_authz_worker(request_rec *r, const json_t * const claims,
 	oidc_debug(r, "authorization denied for client session");
 	ap_note_auth_failure(r);
 
-	return HTTP_UNAUTHORIZED;
+	return note_basic_auth_failure(r);
 }
 
 #if MODULE_MAGIC_NUMBER_MAJOR >= 20100714

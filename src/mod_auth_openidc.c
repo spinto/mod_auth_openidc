@@ -973,7 +973,7 @@ static int oidc_handle_existing_session(request_rec *r, oidc_cfg *cfg,
 
 	/* verify current cookie domain against issued cookie domain */
 	if (oidc_check_cookie_domain(r, cfg, session) == FALSE)
-		return HTTP_UNAUTHORIZED;
+		return note_basic_auth_failure(r);
 
 	/* check if the maximum session duration was exceeded */
 	int rc = oidc_check_max_session_duration(r, cfg, session);
@@ -1530,7 +1530,7 @@ static int oidc_handle_authorization_response(request_rec *r, oidc_cfg *c,
 
 	/* check that we've actually authenticated a user; functions as error handling for oidc_get_remote_user */
 	if (r->user == NULL)
-		return HTTP_UNAUTHORIZED;
+		return note_basic_auth_failure(r);
 
 	/* check whether form post data was preserved; if so restore it */
 	if (apr_strnatcmp(original_method, "form_post") == 0) {
@@ -1648,7 +1648,7 @@ static int oidc_discovery(request_rec *r, oidc_cfg *cfg) {
 		return oidc_util_html_send_error(r, cfg->error_template,
 				"Configuration Error",
 				"No configured providers found, contact your administrator",
-				HTTP_UNAUTHORIZED);
+				note_basic_auth_failure(r));
 
 	/* assemble a where-are-you-from IDP discovery HTML page */
 	const char *s = "			<h3>Select your OpenID Connect Identity Provider</h3>\n";
@@ -1965,7 +1965,7 @@ static int oidc_handle_discovery_response(request_rec *r, oidc_cfg *c) {
 		return oidc_util_html_send_error(r, c->error_template,
 				"Invalid Request",
 				"\"target_link_uri\" parameter does not match configuration settings, aborting to prevent an open redirect.",
-				HTTP_UNAUTHORIZED);
+				note_basic_auth_failure(r));
 	}
 
 	/* find out if the user entered an account name or selected an OP manually */
@@ -2558,12 +2558,12 @@ static int oidc_check_userid_openidc(request_rec *r, oidc_cfg *c) {
 	/* find out which action we need to take when encountering an unauthenticated request */
 	switch (dir_cfg->unauth_action) {
 		case RETURN401:
-			return HTTP_UNAUTHORIZED;
+			return note_basic_auth_failure(r);
 		case PASS:
 			return OK;
 		case AUTHENTICATE:
 			/* if this is a Javascript path we won't redirect the user and create a state cookie */
-			if (apr_table_get(r->headers_in, "X-Requested-With") != NULL) return HTTP_UNAUTHORIZED;
+			if (apr_table_get(r->headers_in, "X-Requested-With") != NULL) return note_basic_auth_failure(r);
 			break;
 	}
 

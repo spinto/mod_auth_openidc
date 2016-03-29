@@ -533,7 +533,7 @@ int oidc_oauth_check_userid(request_rec *r, oidc_cfg *c) {
 	/* get the bearer access token from the Authorization header */
 	const char *access_token = NULL;
 	if (oidc_oauth_get_bearer_token(r, &access_token) == FALSE)
-		return HTTP_UNAUTHORIZED;
+		return note_basic_auth_failure(r);
 
 	/* validate the obtained access token against the OAuth AS validation endpoint */
 	json_t *token = NULL;
@@ -544,18 +544,18 @@ int oidc_oauth_check_userid(request_rec *r, oidc_cfg *c) {
 		/* we'll validate the token remotely */
 		if (oidc_oauth_resolve_access_token(r, c, access_token, &token,
 				&s_token) == FALSE)
-			return HTTP_UNAUTHORIZED;
+			return note_basic_auth_failure(r);
 	} else {
 		/* no introspection endpoint is set, assume the token is a JWT and validate it locally */
 		if (oidc_oauth_validate_jwt_access_token(r, c, access_token, &token,
 				&s_token) == FALSE)
-			return HTTP_UNAUTHORIZED;
+			return note_basic_auth_failure(r);
 	}
 
 	/* check that we've got something back */
 	if (token == NULL) {
 		oidc_error(r, "could not resolve claims (token == NULL)");
-		return HTTP_UNAUTHORIZED;
+		return note_basic_auth_failure(r);
 	}
 
 	/* store the parsed token (cq. the claims from the response) in the request state so it can be accessed by the authz routines */
@@ -565,7 +565,7 @@ int oidc_oauth_check_userid(request_rec *r, oidc_cfg *c) {
 	if (oidc_oauth_set_remote_user(r, c, token) == FALSE) {
 		oidc_error(r,
 				"remote user could not be set, aborting with HTTP_UNAUTHORIZED");
-		return HTTP_UNAUTHORIZED;
+		return note_basic_auth_failure(r);
 	}
 
 	/* get a handle to the director config */
